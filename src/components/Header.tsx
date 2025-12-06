@@ -1,11 +1,10 @@
-import { Search, Bell, Menu, Bot } from 'lucide-react';
+import { Search, Bell, Menu } from 'lucide-react';
 
 interface HeaderProps {
   onToggleSidebar: () => void;
-  onOpenAIAssistant: () => void;
 }
 
-export function Header({ onToggleSidebar, onOpenAIAssistant }: HeaderProps) {
+export function Header({ onToggleSidebar }: HeaderProps) {
   return (
     <header className="h-16 bg-white/70 backdrop-blur-xl border-b border-slate-200 flex items-center justify-between px-6">
       <div className="flex items-center gap-4 flex-1">
@@ -27,15 +26,6 @@ export function Header({ onToggleSidebar, onOpenAIAssistant }: HeaderProps) {
       </div>
 
       <div className="flex items-center gap-4">
-        {/* AI Assistant Button */}
-        <button 
-          onClick={onOpenAIAssistant}
-          className="flex items-center gap-2 px-4 py-2 bg-slate-900 text-white rounded-xl hover:bg-slate-800 transition-all shadow-lg"
-        >
-          <Bot className="w-5 h-5" />
-          <span className="hidden sm:inline">AI Assistant</span>
-        </button>
-
         <button className="relative p-2 hover:bg-slate-50 rounded-lg transition-colors">
           <Bell className="w-5 h-5 text-slate-600" />
           <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-blue-500 rounded-full shadow-lg shadow-blue-500/50"></span>

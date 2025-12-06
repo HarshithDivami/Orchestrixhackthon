@@ -4,6 +4,7 @@ import { AssetDetailsOverlay } from './AssetDetailsOverlay';
 import { AssignToEmployeeOverlay } from './AssignToEmployeeOverlay';
 import { AssetHistoryOverlay } from './AssetHistoryOverlay';
 import { EditAssetOverlay } from './EditAssetOverlay';
+import { SmartSearchBar, QuickFilter } from './SmartSearchBar';
 
 type InventoryView = 'list' | 'add-hardware' | 'add-choice' | 'qr-scan' | 'qr-result';
 type AddHardwareStep = 0 | 1 | 2 | 3 | 4 | 5;
@@ -81,6 +82,8 @@ export function InventoryManagement() {
     status: '',
     department: '',
   });
+
+  const [quickFilters, setQuickFilters] = useState<string[]>([]);
 
   const [hardwareInventory, setHardwareInventory] = useState<HardwareAsset[]>([
     {
@@ -403,12 +406,37 @@ export function InventoryManagement() {
   const filteredInventory = hardwareInventory.filter(asset => {
     const matchesSearch = asset.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
                           asset.assetId.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                          asset.serialNumber.toLowerCase().includes(searchQuery.toLowerCase());
+                          asset.serialNumber.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                          asset.brand.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                          asset.model.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesType = !filters.type || asset.type === filters.type;
     const matchesCategory = !filters.category || asset.category === filters.category;
     const matchesStatus = !filters.status || asset.status === filters.status;
     
-    return matchesSearch && matchesType && matchesCategory && matchesStatus;
+    // Quick filter logic
+    let matchesQuickFilter = true;
+    if (quickFilters.length > 0) {
+      matchesQuickFilter = quickFilters.every(filter => {
+        switch (filter) {
+          case 'available':
+            return asset.status === 'Available';
+          case 'assigned':
+            return asset.status === 'Assigned';
+          case 'repair':
+            return asset.status === 'Under Repair';
+          case 'warranty':
+            const daysLeft = checkWarrantyExpiry(asset.warrantyExpiry);
+            return daysLeft !== null && daysLeft > 0 && daysLeft <= 90;
+          case 'recent':
+            const purchaseDays = Math.ceil((new Date().getTime() - new Date(asset.purchaseDate).getTime()) / (1000 * 60 * 60 * 24));
+            return purchaseDays <= 30;
+          default:
+            return true;
+        }
+      });
+    }
+    
+    return matchesSearch && matchesType && matchesCategory && matchesStatus && matchesQuickFilter;
   });
 
   const getStatusColor = (status: AssetStatus) => {
@@ -773,19 +801,61 @@ export function InventoryManagement() {
             </div>
           </div>
 
-          {/* Search and Filters */}
-          <div className="bg-white rounded-xl border border-slate-200 p-4 mb-6">
-            <div className="flex items-center gap-3">
-              <div className="flex-1 relative">
-                <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-                <input
-                  type="text"
-                  placeholder="Search by name, asset ID, or serial number..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full pl-10 pr-4 py-2 text-sm bg-slate-50 border border-slate-200 rounded-lg text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-900"
-                />
-              </div>
+          {/* Smart Search and Quick Filters */}
+          <div className="bg-white rounded-xl border border-slate-200 p-6 mb-6">
+            <SmartSearchBar
+              searchQuery={searchQuery}
+              onSearchChange={setSearchQuery}
+              quickFilters={[
+                { 
+                  id: 'available', 
+                  label: 'Available', 
+                  icon: <CheckCircle className="w-4 h-4" />,
+                  count: hardwareInventory.filter(a => a.status === 'Available').length 
+                },
+                { 
+                  id: 'assigned', 
+                  label: 'Assigned', 
+                  icon: <UserPlus className="w-4 h-4" />,
+                  count: hardwareInventory.filter(a => a.status === 'Assigned').length 
+                },
+                { 
+                  id: 'repair', 
+                  label: 'Under Repair', 
+                  icon: <Wrench className="w-4 h-4" />,
+                  count: hardwareInventory.filter(a => a.status === 'Under Repair').length 
+                },
+                { 
+                  id: 'warranty', 
+                  label: 'Warranty Expiring', 
+                  icon: <AlertCircle className="w-4 h-4" />,
+                  count: hardwareInventory.filter(a => {
+                    const days = checkWarrantyExpiry(a.warrantyExpiry);
+                    return days !== null && days > 0 && days <= 90;
+                  }).length 
+                },
+                { 
+                  id: 'recent', 
+                  label: 'Recent Additions', 
+                  icon: <Clock className="w-4 h-4" />,
+                  count: hardwareInventory.filter(a => {
+                    const days = Math.ceil((new Date().getTime() - new Date(a.purchaseDate).getTime()) / (1000 * 60 * 60 * 24));
+                    return days <= 30;
+                  }).length 
+                },
+              ]}
+              activeFilters={quickFilters}
+              onFilterToggle={(filterId) => {
+                setQuickFilters(prev => 
+                  prev.includes(filterId) 
+                    ? prev.filter(f => f !== filterId)
+                    : [...prev, filterId]
+                );
+              }}
+              placeholder="Search by name, brand, model, asset ID, or serial number..."
+            />
+            
+            <div className="flex items-center gap-3 mt-4">
               <button
                 onClick={() => setShowFilters(!showFilters)}
                 className={`px-4 py-2 text-sm rounded-lg border transition-colors flex items-center gap-2 ${
@@ -795,7 +865,7 @@ export function InventoryManagement() {
                 }`}
               >
                 <Filter className="w-4 h-4" />
-                Filters
+                Advanced Filters
               </button>
               <button className="px-4 py-2 bg-white text-slate-700 text-sm rounded-lg border border-slate-200 hover:bg-slate-50 transition-colors flex items-center gap-2">
                 <Download className="w-4 h-4" />
@@ -803,7 +873,7 @@ export function InventoryManagement() {
               </button>
             </div>
 
-            {/* Filter Options */}
+            {/* Advanced Filter Options */}
             {showFilters && (
               <div className="grid grid-cols-4 gap-3 mt-4 pt-4 border-t border-slate-200">
                 <div>
@@ -850,7 +920,7 @@ export function InventoryManagement() {
                     onClick={() => setFilters({ type: '', category: '', status: '', department: '' })}
                     className="w-full px-3 py-2 bg-slate-100 text-slate-700 text-sm rounded-lg hover:bg-slate-200 transition-colors"
                   >
-                    Clear Filters
+                    Clear All
                   </button>
                 </div>
               </div>
@@ -1160,44 +1230,471 @@ export function InventoryManagement() {
     );
   }
 
-  // Continue with existing step 1-5 flow...
-  // [Rest of the add hardware steps remain the same but starting from step 1]
+  // Manual Entry Steps 1-5
   return (
     <div className="p-6">
-      <div className="max-w-3xl mx-auto">
+      <div className="max-w-4xl mx-auto">
         <button
           onClick={() => {
             if (addHardwareStep === 1) {
               setAddHardwareStep(0);
+            } else if (addHardwareStep > 1 && addHardwareStep < 5) {
+              setAddHardwareStep((addHardwareStep - 1) as AddHardwareStep);
             } else {
               setInventoryView('list');
-              setAddHardwareStep(1);
             }
           }}
           className="mb-6 flex items-center gap-2 text-sm text-slate-600 hover:text-slate-900 transition-colors"
         >
           <ArrowLeft className="w-4 h-4" />
-          {addHardwareStep === 1 ? 'Back to Type Selection' : 'Back to Inventory'}
+          {addHardwareStep === 1 ? 'Back to Type Selection' : addHardwareStep === 5 ? 'Back to Inventory' : 'Back'}
         </button>
 
         <div className="text-center mb-8">
-          <h2 className="text-2xl text-slate-900 mb-2">Add Hardware - {hardwareData.type || 'New Asset'}</h2>
-          <p className="text-sm text-slate-600">Complete all required information</p>
-        </div>
-
-        {/* Progress indicator continues with steps 1-5 */}
-        <div className="bg-white rounded-xl border border-slate-200 p-6 mb-6">
-          <div className="text-center text-sm text-slate-600">
-            Step {addHardwareStep} of 5: Enter all hardware details to complete the setup
-          </div>
-        </div>
-
-        {/* Placeholder for actual step content */}
-        <div className="bg-white rounded-xl border border-slate-200 p-6">
-          <p className="text-sm text-slate-600 text-center">
-            Detailed step content for Step {addHardwareStep} would go here
+          <h2 className="text-2xl text-slate-900 mb-2">
+            {addHardwareStep === 5 ? 'Hardware Added Successfully!' : `Add Hardware - ${hardwareData.type}`}
+          </h2>
+          <p className="text-sm text-slate-600">
+            {addHardwareStep === 5 ? 'Your new asset has been added to inventory' : 'Complete all required information'}
           </p>
         </div>
+
+        {/* Progress indicator */}
+        {addHardwareStep < 5 && (
+          <div className="bg-white rounded-xl border border-slate-200 p-5 mb-6">
+            <div className="flex items-center justify-between mb-3">
+              {[1, 2, 3, 4].map((step, idx) => (
+                <div key={step} className="flex items-center flex-1">
+                  <div className={`w-10 h-10 rounded-full flex items-center justify-center text-sm transition-all ${
+                    step < addHardwareStep ? 'bg-green-500 text-white' :
+                    step === addHardwareStep ? 'bg-slate-900 text-white' :
+                    'bg-slate-100 text-slate-400'
+                  }`}>
+                    {step < addHardwareStep ? <CheckCircle className="w-5 h-5" /> : step}
+                  </div>
+                  {idx < 3 && (
+                    <div className={`flex-1 h-1 mx-2 rounded ${
+                      step < addHardwareStep ? 'bg-green-500' : 'bg-slate-200'
+                    }`} />
+                  )}
+                </div>
+              ))}
+            </div>
+            <div className="text-center text-sm text-slate-600">
+              {addHardwareStep === 1 && 'Basic Information'}
+              {addHardwareStep === 2 && 'Purchase Details'}
+              {addHardwareStep === 3 && 'Asset Identifiers'}
+              {addHardwareStep === 4 && 'Review & Confirm'}
+            </div>
+          </div>
+        )}
+
+        {/* Step 1: Basic Information */}
+        {addHardwareStep === 1 && (
+          <div className="space-y-6">
+            <div className="bg-white rounded-xl border border-slate-200 p-6">
+              <h3 className="text-sm text-slate-900 mb-5">Hardware Information</h3>
+              
+              <div className="space-y-5">
+                <div>
+                  <label className="block text-sm text-slate-700 mb-2">Hardware Name *</label>
+                  <input
+                    type="text"
+                    value={hardwareData.name}
+                    onChange={(e) => updateHardwareData('name', e.target.value)}
+                    placeholder={`e.g., ${hardwareData.type === 'Laptop' ? 'MacBook Pro 16"' : hardwareData.type === 'Monitor' ? 'LG UltraWide 34"' : hardwareData.type + ' Device'}`}
+                    className="w-full px-4 py-3 text-sm bg-slate-50 border border-slate-200 rounded-lg text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-900 focus:bg-white transition-all"
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm text-slate-700 mb-2">Hardware Type *</label>
+                    <div className="px-4 py-3 text-sm bg-slate-100 border border-slate-200 rounded-lg text-slate-600 flex items-center gap-2">
+                      {getTypeIcon(hardwareData.type)}
+                      {hardwareData.type}
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-sm text-slate-700 mb-2">Category *</label>
+                    <div className="px-4 py-3 text-sm bg-slate-100 border border-slate-200 rounded-lg text-slate-600">
+                      {hardwareData.category}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm text-slate-700 mb-2">Brand / Manufacturer *</label>
+                    <input
+                      type="text"
+                      value={hardwareData.brand}
+                      onChange={(e) => updateHardwareData('brand', e.target.value)}
+                      placeholder="e.g., Apple, Dell, HP"
+                      className="w-full px-4 py-3 text-sm bg-slate-50 border border-slate-200 rounded-lg text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-900 focus:bg-white transition-all"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm text-slate-700 mb-2">Model Number *</label>
+                    <input
+                      type="text"
+                      value={hardwareData.model}
+                      onChange={(e) => updateHardwareData('model', e.target.value)}
+                      placeholder="e.g., M3 Pro 2024, XPS 15"
+                      className="w-full px-4 py-3 text-sm bg-slate-50 border border-slate-200 rounded-lg text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-900 focus:bg-white transition-all"
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex gap-3">
+              <button
+                onClick={() => setAddHardwareStep(0)}
+                className="flex-1 px-5 py-3 bg-white border border-slate-200 text-sm text-slate-700 rounded-lg hover:bg-slate-50 transition-colors"
+              >
+                Change Type
+              </button>
+              <button
+                onClick={() => {
+                  if (hardwareData.name && hardwareData.brand && hardwareData.model) {
+                    setAddHardwareStep(2);
+                  } else {
+                    alert('Please fill in all required fields');
+                  }
+                }}
+                className="flex-1 px-5 py-3 bg-slate-900 text-sm text-white rounded-lg hover:bg-slate-800 transition-colors"
+              >
+                Continue to Purchase Details
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Step 2: Purchase Details */}
+        {addHardwareStep === 2 && (
+          <div className="space-y-6">
+            <div className="bg-white rounded-xl border border-slate-200 p-6">
+              <h3 className="text-sm text-slate-900 mb-5">Purchase Information</h3>
+              
+              <div className="space-y-5">
+                <div>
+                  <label className="block text-sm text-slate-700 mb-2">Vendor / Supplier *</label>
+                  <input
+                    type="text"
+                    value={hardwareData.vendor}
+                    onChange={(e) => updateHardwareData('vendor', e.target.value)}
+                    placeholder="e.g., Apple Store, Amazon Business, Dell Direct"
+                    className="w-full px-4 py-3 text-sm bg-slate-50 border border-slate-200 rounded-lg text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-900 focus:bg-white transition-all"
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm text-slate-700 mb-2">Purchase Date *</label>
+                    <input
+                      type="date"
+                      value={hardwareData.purchaseDate}
+                      onChange={(e) => updateHardwareData('purchaseDate', e.target.value)}
+                      className="w-full px-4 py-3 text-sm bg-slate-50 border border-slate-200 rounded-lg text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-900 focus:bg-white transition-all"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm text-slate-700 mb-2">Purchase Cost *</label>
+                    <input
+                      type="text"
+                      value={hardwareData.cost}
+                      onChange={(e) => updateHardwareData('cost', e.target.value)}
+                      placeholder="e.g., $2,499"
+                      className="w-full px-4 py-3 text-sm bg-slate-50 border border-slate-200 rounded-lg text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-900 focus:bg-white transition-all"
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-white rounded-xl border border-slate-200 p-6">
+              <div className="flex items-center gap-2 mb-5">
+                <h3 className="text-sm text-slate-900">Warranty & Support</h3>
+                <div className="px-2 py-0.5 bg-orange-100 text-orange-700 rounded text-xs">
+                  Warranty alerts enabled
+                </div>
+              </div>
+              
+              <div className="space-y-5">
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm text-slate-700 mb-2">Warranty Expiry Date *</label>
+                    <input
+                      type="date"
+                      value={hardwareData.warrantyExpiry}
+                      onChange={(e) => updateHardwareData('warrantyExpiry', e.target.value)}
+                      className="w-full px-4 py-3 text-sm bg-slate-50 border border-slate-200 rounded-lg text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-900 focus:bg-white transition-all"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm text-slate-700 mb-2">AMC / Support Details</label>
+                    <input
+                      type="text"
+                      value={hardwareData.amcDetails}
+                      onChange={(e) => updateHardwareData('amcDetails', e.target.value)}
+                      placeholder="e.g., AppleCare+ 3 years"
+                      className="w-full px-4 py-3 text-sm bg-slate-50 border border-slate-200 rounded-lg text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-900 focus:bg-white transition-all"
+                    />
+                  </div>
+                </div>
+
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                  <p className="text-xs text-blue-700">
+                    <strong>Auto-reminder:</strong> You will receive alerts 90 days before warranty expiration
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex gap-3">
+              <button
+                onClick={() => setAddHardwareStep(1)}
+                className="flex-1 px-5 py-3 bg-white border border-slate-200 text-sm text-slate-700 rounded-lg hover:bg-slate-50 transition-colors"
+              >
+                Back
+              </button>
+              <button
+                onClick={() => {
+                  if (hardwareData.vendor && hardwareData.purchaseDate && hardwareData.cost && hardwareData.warrantyExpiry) {
+                    setAddHardwareStep(3);
+                  } else {
+                    alert('Please fill in all required fields');
+                  }
+                }}
+                className="flex-1 px-5 py-3 bg-slate-900 text-sm text-white rounded-lg hover:bg-slate-800 transition-colors"
+              >
+                Continue to Identifiers
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Step 3: Asset Identifiers */}
+        {addHardwareStep === 3 && (
+          <div className="space-y-6">
+            <div className="bg-white rounded-xl border border-slate-200 p-6">
+              <h3 className="text-sm text-slate-900 mb-5">Asset Tracking Information</h3>
+              
+              <div className="space-y-5">
+                <div>
+                  <label className="block text-sm text-slate-700 mb-2">Serial Number *</label>
+                  <input
+                    type="text"
+                    value={hardwareData.serialNumber}
+                    onChange={(e) => updateHardwareData('serialNumber', e.target.value)}
+                    placeholder="e.g., C02XK0YJLVCF"
+                    className="w-full px-4 py-3 text-sm bg-slate-50 border border-slate-200 rounded-lg text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-900 focus:bg-white transition-all font-mono"
+                  />
+                  <p className="mt-1.5 text-xs text-slate-500">Usually found on the device label or in settings</p>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm text-slate-700 mb-2">Internal Asset ID *</label>
+                    <input
+                      type="text"
+                      value={hardwareData.assetId}
+                      onChange={(e) => updateHardwareData('assetId', e.target.value)}
+                      placeholder="e.g., DVM-0898"
+                      className="w-full px-4 py-3 text-sm bg-slate-50 border border-slate-200 rounded-lg text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-900 focus:bg-white transition-all font-mono"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm text-slate-700 mb-2">QR Code ID</label>
+                    <input
+                      type="text"
+                      value={hardwareData.qrCode}
+                      onChange={(e) => updateHardwareData('qrCode', e.target.value)}
+                      placeholder="Auto-generated"
+                      className="w-full px-4 py-3 text-sm bg-slate-50 border border-slate-200 rounded-lg text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-900 focus:bg-white transition-all font-mono"
+                    />
+                  </div>
+                </div>
+
+                <div className="bg-slate-50 border border-slate-200 rounded-lg p-4">
+                  <div className="flex items-start gap-3">
+                    <Hash className="w-4 h-4 text-slate-600 mt-0.5" />
+                    <div className="flex-1">
+                      <p className="text-sm text-slate-700 mb-1">Unique Identifiers</p>
+                      <p className="text-xs text-slate-500">
+                        These IDs ensure proper tracking throughout the asset lifecycle. The Asset ID will be used for all internal references.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex gap-3">
+              <button
+                onClick={() => setAddHardwareStep(2)}
+                className="flex-1 px-5 py-3 bg-white border border-slate-200 text-sm text-slate-700 rounded-lg hover:bg-slate-50 transition-colors"
+              >
+                Back
+              </button>
+              <button
+                onClick={() => {
+                  if (hardwareData.serialNumber && hardwareData.assetId) {
+                    if (!hardwareData.qrCode) {
+                      updateHardwareData('qrCode', `QR-${hardwareData.assetId}`);
+                    }
+                    setAddHardwareStep(4);
+                  } else {
+                    alert('Please fill in all required fields');
+                  }
+                }}
+                className="flex-1 px-5 py-3 bg-slate-900 text-sm text-white rounded-lg hover:bg-slate-800 transition-colors"
+              >
+                Review Details
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Step 4: Review & Confirm */}
+        {addHardwareStep === 4 && (
+          <div className="space-y-6">
+            <div className="bg-white rounded-xl border border-slate-200 p-6">
+              <h3 className="text-sm text-slate-900 mb-5">Review Hardware Details</h3>
+              
+              <div className="space-y-6">
+                <div>
+                  <div className="text-xs text-slate-500 mb-3">BASIC INFORMATION</div>
+                  <div className="space-y-2.5">
+                    <div className="flex justify-between py-2 border-b border-slate-100">
+                      <span className="text-sm text-slate-600">Hardware Name</span>
+                      <span className="text-sm text-slate-900">{hardwareData.name}</span>
+                    </div>
+                    <div className="flex justify-between py-2 border-b border-slate-100">
+                      <span className="text-sm text-slate-600">Type</span>
+                      <span className="text-sm text-slate-900 flex items-center gap-2">
+                        {getTypeIcon(hardwareData.type)}
+                        {hardwareData.type}
+                      </span>
+                    </div>
+                    <div className="flex justify-between py-2 border-b border-slate-100">
+                      <span className="text-sm text-slate-600">Brand</span>
+                      <span className="text-sm text-slate-900">{hardwareData.brand}</span>
+                    </div>
+                    <div className="flex justify-between py-2 border-b border-slate-100">
+                      <span className="text-sm text-slate-600">Model</span>
+                      <span className="text-sm text-slate-900">{hardwareData.model}</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div>
+                  <div className="text-xs text-slate-500 mb-3">PURCHASE DETAILS</div>
+                  <div className="space-y-2.5">
+                    <div className="flex justify-between py-2 border-b border-slate-100">
+                      <span className="text-sm text-slate-600">Vendor</span>
+                      <span className="text-sm text-slate-900">{hardwareData.vendor}</span>
+                    </div>
+                    <div className="flex justify-between py-2 border-b border-slate-100">
+                      <span className="text-sm text-slate-600">Purchase Date</span>
+                      <span className="text-sm text-slate-900">{hardwareData.purchaseDate}</span>
+                    </div>
+                    <div className="flex justify-between py-2 border-b border-slate-100">
+                      <span className="text-sm text-slate-600">Cost</span>
+                      <span className="text-sm text-slate-900">{hardwareData.cost}</span>
+                    </div>
+                    <div className="flex justify-between py-2 border-b border-slate-100">
+                      <span className="text-sm text-slate-600">Warranty Expiry</span>
+                      <span className="text-sm text-slate-900">{hardwareData.warrantyExpiry}</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div>
+                  <div className="text-xs text-slate-500 mb-3">ASSET IDENTIFIERS</div>
+                  <div className="space-y-2.5">
+                    <div className="flex justify-between py-2 border-b border-slate-100">
+                      <span className="text-sm text-slate-600">Serial Number</span>
+                      <span className="text-sm text-slate-900 font-mono">{hardwareData.serialNumber}</span>
+                    </div>
+                    <div className="flex justify-between py-2 border-b border-slate-100">
+                      <span className="text-sm text-slate-600">Asset ID</span>
+                      <span className="text-sm text-slate-900 font-mono">{hardwareData.assetId}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex gap-3">
+              <button
+                onClick={() => setAddHardwareStep(3)}
+                className="flex-1 px-5 py-3 bg-white border border-slate-200 text-sm text-slate-700 rounded-lg hover:bg-slate-50 transition-colors"
+              >
+                Back
+              </button>
+              <button
+                onClick={() => {
+                  handleAddHardware();
+                  setAddHardwareStep(5);
+                }}
+                className="flex-1 px-5 py-3 bg-slate-900 text-sm text-white rounded-lg hover:bg-slate-800 transition-colors flex items-center justify-center gap-2"
+              >
+                <CheckCircle className="w-4 h-4" />
+                Add to Inventory
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Step 5: Success */}
+        {addHardwareStep === 5 && (
+          <div className="space-y-6">
+            <div className="bg-white rounded-xl border border-slate-200 p-12 text-center">
+              <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-6">
+                <CheckCircle className="w-10 h-10 text-green-600" />
+              </div>
+              <h3 className="text-xl text-slate-900 mb-2">Hardware Added Successfully!</h3>
+              <p className="text-sm text-slate-600 mb-8">
+                The hardware has been added to your inventory with status "Available"
+              </p>
+
+              <div className="flex gap-3 max-w-md mx-auto">
+                <button
+                  onClick={() => {
+                    setInventoryView('add-choice');
+                    setAddHardwareStep(1);
+                    setHardwareData({
+                      name: '',
+                      type: '',
+                      category: '',
+                      brand: '',
+                      model: '',
+                      vendor: '',
+                      purchaseDate: '',
+                      cost: '',
+                      warrantyExpiry: '',
+                      amcDetails: '',
+                      serialNumber: '',
+                      assetId: '',
+                      qrCode: '',
+                    });
+                  }}
+                  className="flex-1 px-5 py-3 bg-white border border-slate-200 text-sm text-slate-700 rounded-lg hover:bg-slate-50 transition-colors"
+                >
+                  Add Another
+                </button>
+                <button
+                  onClick={() => setInventoryView('list')}
+                  className="flex-1 px-5 py-3 bg-slate-900 text-sm text-white rounded-lg hover:bg-slate-800 transition-colors"
+                >
+                  View Inventory
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

@@ -10,6 +10,7 @@ import { Settings } from './components/Settings';
 import { UserManagement } from './components/UserManagement';
 import { InventoryManagement } from './components/InventoryManagement';
 import { AIAssistantOverlay } from './components/AIAssistantOverlay';
+import { Bot, Sparkles } from 'lucide-react';
 
 export default function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -59,12 +60,21 @@ export default function App() {
       <div className="flex-1 flex flex-col overflow-hidden">
         <Header
           onToggleSidebar={() => setSidebarCollapsed(!sidebarCollapsed)}
-          onOpenAIAssistant={() => setIsAIAssistantOpen(true)}
         />
         <main className="flex-1 overflow-y-auto">
           {renderView()}
         </main>
       </div>
+
+      {/* Floating AI Assistant Button */}
+      <button
+        onClick={() => setIsAIAssistantOpen(true)}
+        className="fixed bottom-6 right-6 w-16 h-16 bg-gradient-to-br from-slate-900 to-slate-700 text-white rounded-full shadow-2xl hover:shadow-slate-900/30 hover:scale-110 transition-all duration-300 flex items-center justify-center group z-50"
+        aria-label="Open AI Assistant"
+      >
+        <Bot className="w-7 h-7 group-hover:scale-110 transition-transform" />
+        <Sparkles className="w-3 h-3 absolute top-2 right-2 text-blue-300 animate-pulse" />
+      </button>
 
       {/* AI Assistant Overlay */}
       <AIAssistantOverlay

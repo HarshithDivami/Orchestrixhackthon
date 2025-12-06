@@ -1,6 +1,7 @@
 import { useState } from 'react';
-import { Upload, FileText, ArrowLeft, Check, AlertCircle, Laptop, Key as KeyIcon, CheckCircle, Sparkles, ChevronLeft, ChevronRight, UserPlus, LayoutGrid, LayoutList, Mail, MapPin, Calendar } from 'lucide-react';
+import { Upload, FileText, ArrowLeft, Check, AlertCircle, Laptop, Key as KeyIcon, CheckCircle, Sparkles, ChevronLeft, ChevronRight, UserPlus, LayoutGrid, LayoutList, Mail, MapPin, Calendar, Users, Clock, Briefcase } from 'lucide-react';
 import { EmployeeDetailsOverlay } from './EmployeeDetailsOverlay';
+import { SmartSearchBar } from './SmartSearchBar';
 
 type OnboardingStep = 'list' | 'choice' | 'upload' | 'upload-preview' | 'manual' | 'assign-resources' | 'summary' | 'complete';
 type ManualStep = 1 | 2 | 3 | 4;
@@ -64,6 +65,8 @@ export function UserManagement() {
   const [currentEmployeeIndex, setCurrentEmployeeIndex] = useState(0);
   const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(null);
   const [isDetailsOpen, setIsDetailsOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [quickFilters, setQuickFilters] = useState<string[]>([]);
 
   // Main employee list
   const [employeeList, setEmployeeList] = useState<Employee[]>([
@@ -253,6 +256,39 @@ export function UserManagement() {
     });
   };
 
+  // Filter employees based on search and quick filters
+  const filteredEmployees = employeeList.filter(emp => {
+    const matchesSearch = emp.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                          emp.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                          emp.role.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                          emp.department.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                          (emp.employeeId || '').toLowerCase().includes(searchQuery.toLowerCase());
+    
+    let matchesQuickFilter = true;
+    if (quickFilters.length > 0) {
+      matchesQuickFilter = quickFilters.every(filter => {
+        switch (filter) {
+          case 'active':
+            return emp.status === 'Active';
+          case 'pending':
+            return emp.status === 'Pending';
+          case 'engineering':
+            return emp.department === 'Engineering';
+          case 'recent':
+            if (!emp.joinDate) return false;
+            const joinDays = Math.ceil((new Date().getTime() - new Date(emp.joinDate).getTime()) / (1000 * 60 * 60 * 24));
+            return joinDays <= 30;
+          case 'needs-resources':
+            return (emp.hardware?.length || 0) === 0 || (emp.software?.length || 0) === 0;
+          default:
+            return true;
+        }
+      });
+    }
+    
+    return matchesSearch && matchesQuickFilter;
+  });
+
   // Employee List View
   if (onboardingStep === 'list') {
     return (
@@ -296,23 +332,80 @@ export function UserManagement() {
             </div>
           </div>
 
+          {/* Smart Search and Quick Filters */}
+          <div className="bg-white rounded-xl border border-slate-200 p-6 mb-6">
+            <SmartSearchBar
+              searchQuery={searchQuery}
+              onSearchChange={setSearchQuery}
+              quickFilters={[
+                { 
+                  id: 'active', 
+                  label: 'Active', 
+                  icon: <CheckCircle className="w-4 h-4" />,
+                  count: employeeList.filter(e => e.status === 'Active').length 
+                },
+                { 
+                  id: 'pending', 
+                  label: 'Pending', 
+                  icon: <Clock className="w-4 h-4" />,
+                  count: employeeList.filter(e => e.status === 'Pending').length 
+                },
+                { 
+                  id: 'engineering', 
+                  label: 'Engineering', 
+                  icon: <Briefcase className="w-4 h-4" />,
+                  count: employeeList.filter(e => e.department === 'Engineering').length 
+                },
+                { 
+                  id: 'recent', 
+                  label: 'Recently Joined', 
+                  icon: <Clock className="w-4 h-4" />,
+                  count: employeeList.filter(e => {
+                    if (!e.joinDate) return false;
+                    const days = Math.ceil((new Date().getTime() - new Date(e.joinDate).getTime()) / (1000 * 60 * 60 * 24));
+                    return days <= 30;
+                  }).length 
+                },
+                { 
+                  id: 'needs-resources', 
+                  label: 'Needs Resources', 
+                  icon: <AlertCircle className="w-4 h-4" />,
+                  count: employeeList.filter(e => (e.hardware?.length || 0) === 0 || (e.software?.length || 0) === 0).length 
+                },
+              ]}
+              activeFilters={quickFilters}
+              onFilterToggle={(filterId) => {
+                setQuickFilters(prev => 
+                  prev.includes(filterId) 
+                    ? prev.filter(f => f !== filterId)
+                    : [...prev, filterId]
+                );
+              }}
+              placeholder="Search by name, email, role, department, or employee ID..."
+            />
+          </div>
+
           {/* Stats */}
           <div className="grid grid-cols-4 gap-4 mb-6">
             <div className="bg-white rounded-xl p-4 border border-slate-200">
               <div className="text-xs text-slate-600 mb-1">Total Employees</div>
-              <div className="text-2xl text-slate-900">{employeeList.length}</div>
+              <div className="text-2xl text-slate-900">{filteredEmployees.length}</div>
             </div>
             <div className="bg-white rounded-xl p-4 border border-slate-200">
               <div className="text-xs text-slate-600 mb-1">Active</div>
-              <div className="text-2xl text-slate-900">{employeeList.filter(e => e.status === 'Active').length}</div>
+              <div className="text-2xl text-slate-900">{filteredEmployees.filter(e => e.status === 'Active').length}</div>
             </div>
             <div className="bg-white rounded-xl p-4 border border-slate-200">
               <div className="text-xs text-slate-600 mb-1">Pending</div>
-              <div className="text-2xl text-slate-900">{employeeList.filter(e => e.status === 'Pending').length}</div>
+              <div className="text-2xl text-slate-900">{filteredEmployees.filter(e => e.status === 'Pending').length}</div>
             </div>
             <div className="bg-white rounded-xl p-4 border border-slate-200">
               <div className="text-xs text-slate-600 mb-1">This Month</div>
-              <div className="text-2xl text-slate-900">12</div>
+              <div className="text-2xl text-slate-900">{filteredEmployees.filter(e => {
+                if (!e.joinDate) return false;
+                const joinDays = Math.ceil((new Date().getTime() - new Date(e.joinDate).getTime()) / (1000 * 60 * 60 * 24));
+                return joinDays <= 30;
+              }).length}</div>
             </div>
           </div>
 
@@ -332,7 +425,7 @@ export function UserManagement() {
                   </tr>
                 </thead>
                 <tbody>
-                  {employeeList.map((emp) => (
+                  {filteredEmployees.map((emp) => (
                     <tr 
                       key={emp.id} 
                       onClick={() => handleEmployeeClick(emp)}
@@ -367,13 +460,20 @@ export function UserManagement() {
                   ))}
                 </tbody>
               </table>
+              {filteredEmployees.length === 0 && (
+                <div className="text-center py-12">
+                  <Users className="w-12 h-12 text-slate-300 mx-auto mb-3" />
+                  <p className="text-slate-600 mb-1">No employees found</p>
+                  <p className="text-sm text-slate-500">Try adjusting your search or filters</p>
+                </div>
+              )}
             </div>
           )}
 
           {/* Grid View */}
           {viewMode === 'grid' && (
             <div className="grid grid-cols-3 gap-4">
-              {employeeList.map((emp) => (
+              {filteredEmployees.map((emp) => (
                 <div 
                   key={emp.id} 
                   onClick={() => handleEmployeeClick(emp)}
@@ -421,6 +521,13 @@ export function UserManagement() {
                   </div>
                 </div>
               ))}
+              {filteredEmployees.length === 0 && (
+                <div className="col-span-3 text-center py-12 bg-white rounded-xl border border-slate-200">
+                  <Users className="w-12 h-12 text-slate-300 mx-auto mb-3" />
+                  <p className="text-slate-600 mb-1">No employees found</p>
+                  <p className="text-sm text-slate-500">Try adjusting your search or filters</p>
+                </div>
+              )}
             </div>
           )}
         </div>
