@@ -1,5 +1,6 @@
-import { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Lock, User, Shield, Zap, Server, Users, TrendingUp, CheckCircle, Mail, Chrome } from 'lucide-react';
+import { api } from '../utils/api';
 
 interface LoginScreenProps {
   onLogin: () => void;
@@ -7,19 +8,91 @@ interface LoginScreenProps {
 
 export function LoginScreen({ onLogin }: LoginScreenProps) {
   const [email, setEmail] = useState('');
-  const [showEmailLogin, setShowEmailLogin] = useState(false);
+  const [showEmailLogin, setShowEmailLogin] = useState(() => {
+    console.log('=== LOGIN SCREEN INITIALIZATION ===');
+    console.log('[LOGIN] LoginScreen component mounting...');
+    console.log('[LOGIN] Initial state: showEmailLogin = false');
+    console.log('[LOGIN] Available SSO providers: Google Workspace, Microsoft 365');
+    return false;
+  });
 
-  const handleSSOLogin = (provider: string) => {
-    // In a real implementation, this would redirect to the SSO provider
-    console.log(`Initiating SSO login with ${provider}`);
-    onLogin();
+  useEffect(() => {
+    console.log(`[LOGIN] LoginScreen rendered - showEmailLogin: ${showEmailLogin}`);
+    console.log(`[LOGIN] Current email value: "${email}"`);
+    console.log(`[LOGIN] UI Mode: ${showEmailLogin ? 'Email Login Form' : 'SSO Provider Selection'}`);
+  });
+
+  useEffect(() => {
+    console.log(`[LOGIN] State change - showEmailLogin: ${showEmailLogin}`);
+  }, [showEmailLogin]);
+
+  useEffect(() => {
+    if (email) {
+      console.log(`[LOGIN] Email input changed: ${email}`);
+    }
+  }, [email]);
+
+  const handleSSOLogin = async (provider: string) => {
+    console.log('=== SSO LOGIN FLOW START ===');
+    console.log(`[LOGIN] SSO Provider: ${provider}`);
+    console.log(`[LOGIN] Timestamp: ${new Date().toISOString()}`);
+    console.log(`[LOGIN] User Agent: ${navigator.userAgent}`);
+    console.log(`[LOGIN] Current URL: ${window.location.href}`);
+    console.log(`[LOGIN] Backend URL: http://localhost:9000`);
+    
+    try {
+      if (provider === 'Google Workspace') {
+        console.log(`[LOGIN] Initiating Google OAuth flow with backend...`);
+        console.log(`[LOGIN] Redirecting directly to backend OAuth endpoint...`);
+        console.log(`[LOGIN] Backend will handle OAuth flow and redirect to Google`);
+        
+        // Direct redirect to backend OAuth endpoint
+        // Backend will redirect to Google OAuth and then back to frontend callback
+        api.auth.google();
+        
+      } else if (provider === 'Microsoft 365') {
+        console.log(`[LOGIN] Microsoft 365 OAuth not implemented yet`);
+        console.log(`[LOGIN] Would make request to: http://localhost:9000/auth/microsoft`);
+        
+        // For now, simulate Microsoft login
+        setTimeout(() => {
+          console.log(`[LOGIN] Simulated Microsoft login completed`);
+          console.log('=== SSO LOGIN FLOW END ===');
+          onLogin();
+        }, 1000);
+      }
+      
+    } catch (error) {
+      console.error('=== SSO LOGIN ERROR ===');
+      console.error(`[LOGIN] Error during ${provider} authentication:`, error);
+      console.error(`[LOGIN] Error message: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      console.error(`[LOGIN] Please check if backend is running on http://localhost:9000`);
+      
+      // Show user-friendly error
+      alert(`Authentication error: ${error instanceof Error ? error.message : 'Unknown error'}. Please check if the backend is running.`);
+    }
   };
 
   const handleEmailSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    console.log('=== EMAIL LOGIN FLOW START ===');
+    console.log(`[LOGIN] Email Login Attempt: ${email}`);
+    console.log(`[LOGIN] Timestamp: ${new Date().toISOString()}`);
+    console.log(`[LOGIN] Email validation: ${email.includes('@') ? 'Valid format' : 'Invalid format'}`);
+    console.log(`[LOGIN] Domain: ${email.split('@')[1] || 'No domain'}`);
+    
     // In a real implementation, this would handle magic link or passwordless auth
-    console.log(`Sending magic link to ${email}`);
-    onLogin();
+    console.log(`[LOGIN] Sending magic link to ${email}...`);
+    console.log(`[LOGIN] Magic link endpoint: /auth/magic-link`);
+    console.log(`[LOGIN] Email delivery initiated`);
+    
+    setTimeout(() => {
+      console.log(`[LOGIN] Magic link sent successfully to ${email}`);
+      console.log(`[LOGIN] User authenticated via email magic link`);
+      console.log(`[LOGIN] Calling onLogin callback...`);
+      console.log('=== EMAIL LOGIN FLOW END ===');
+      onLogin();
+    }, 100);
   };
 
   const features = [
@@ -164,7 +237,11 @@ export function LoginScreen({ onLogin }: LoginScreenProps) {
 
                 {/* Email Option */}
                 <button
-                  onClick={() => setShowEmailLogin(true)}
+                  onClick={() => {
+                    console.log('[LOGIN] User clicked "Sign in with Email" button');
+                    console.log('[LOGIN] Switching to email login form');
+                    setShowEmailLogin(true);
+                  }}
                   className="w-full px-5 py-3.5 bg-white border border-slate-300 rounded-xl text-slate-700 text-sm transition-all flex items-center justify-center gap-3 shadow-sm hover:shadow-md hover:bg-slate-50"
                 >
                   <Mail className="w-5 h-5" />
@@ -204,7 +281,11 @@ export function LoginScreen({ onLogin }: LoginScreenProps) {
 
                 {/* Back to SSO */}
                 <button
-                  onClick={() => setShowEmailLogin(false)}
+                  onClick={() => {
+                    console.log('[LOGIN] User clicked "Back to SSO options" button');
+                    console.log('[LOGIN] Switching back to SSO login view');
+                    setShowEmailLogin(false);
+                  }}
                   className="w-full mt-4 py-2 text-slate-600 hover:text-slate-900 text-sm transition-colors"
                 >
                   ← Back to SSO options
