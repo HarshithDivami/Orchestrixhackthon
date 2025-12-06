@@ -1,14 +1,15 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { LoginScreen } from './components/LoginScreen';
 import { Sidebar } from './components/Sidebar';
 import { Header } from './components/Header';
 import { Dashboard } from './components/Dashboard';
 import { Analytics } from './components/Analytics';
-import { Projects } from './components/Projects';
 import { Team } from './components/Team';
 import { Settings } from './components/Settings';
 import { UserManagement } from './components/UserManagement';
 import { InventoryManagement } from './components/InventoryManagement';
+import { SubscriptionManagement } from './components/SubscriptionManagement';
+import { ClientServicesManagement } from './components/ClientServicesManagement';
 import { AIAssistantOverlay } from './components/AIAssistantOverlay';
 import { Bot, Sparkles } from 'lucide-react';
 
@@ -17,35 +18,58 @@ export default function App() {
   const [currentView, setCurrentView] = useState('dashboard');
   const [sidebarCollapsed, setSidebarCollapsed] = useState(true);
   const [isAIAssistantOpen, setIsAIAssistantOpen] = useState(false);
+  const [isFirstLogin, setIsFirstLogin] = useState(false);
+
+  // Check if it's the first login
+  useEffect(() => {
+    const hasSeenWelcome = localStorage.getItem('orchestrix_has_seen_welcome');
+    if (!hasSeenWelcome && isAuthenticated) {
+      setIsFirstLogin(true);
+      setIsAIAssistantOpen(true);
+    }
+  }, [isAuthenticated]);
+
+  const handleCloseAIAssistant = () => {
+    if (isFirstLogin) {
+      localStorage.setItem('orchestrix_has_seen_welcome', 'true');
+      setIsFirstLogin(false);
+    }
+    setIsAIAssistantOpen(false);
+  };
+
+  const handleSignOut = () => {
+    setIsAuthenticated(false);
+    setCurrentView('dashboard');
+    localStorage.removeItem('orchestrix_has_seen_welcome');
+  };
 
   // Show login screen if not authenticated
   if (!isAuthenticated) {
     return <LoginScreen onLogin={() => {
       setIsAuthenticated(true);
-      setIsAIAssistantOpen(true); // Open AI Assistant on login
     }} />;
   }
 
   const renderView = () => {
     switch (currentView) {
       case 'dashboard':
-        return <Dashboard />;
+        return <Dashboard onNavigate={setCurrentView} />;
       case 'user-management':
         return <UserManagement />;
       case 'inventory-management':
         return <InventoryManagement />;
-      case 'reports-audit':
-        return <div className="p-8"><h1 className="text-2xl text-slate-900">Reports and Audit</h1><p className="text-sm text-slate-600 mt-2">Coming soon...</p></div>;
+      case 'subscription-management':
+        return <SubscriptionManagement />;
+      case 'client-services-management':
+        return <ClientServicesManagement />;
       case 'analytics':
         return <Analytics />;
-      case 'projects':
-        return <Projects />;
       case 'team':
         return <Team />;
       case 'settings':
         return <Settings />;
       default:
-        return <Dashboard />;
+        return <Dashboard onNavigate={setCurrentView} />;
     }
   };
 
@@ -56,10 +80,12 @@ export default function App() {
         onNavigate={setCurrentView}
         collapsed={sidebarCollapsed}
         onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
+        onSignOut={handleSignOut}
       />
       <div className="flex-1 flex flex-col overflow-hidden">
         <Header
           onToggleSidebar={() => setSidebarCollapsed(!sidebarCollapsed)}
+          onSignOut={handleSignOut}
         />
         <main className="flex-1 overflow-y-auto">
           {renderView()}
@@ -79,8 +105,9 @@ export default function App() {
       {/* AI Assistant Overlay */}
       <AIAssistantOverlay
         isOpen={isAIAssistantOpen}
-        onClose={() => setIsAIAssistantOpen(false)}
+        onClose={handleCloseAIAssistant}
         onNavigate={setCurrentView}
+        isFirstLogin={isFirstLogin}
       />
     </div>
   );

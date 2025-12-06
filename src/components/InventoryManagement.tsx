@@ -1,17 +1,17 @@
 import { useState, useEffect } from 'react';
-import { Plus, Package, Laptop, Monitor, Smartphone, Printer, Server, HardDrive, Upload, Search, Filter, ChevronDown, MoreVertical, Clock, AlertCircle, CheckCircle, X, ArrowLeft, Calendar, DollarSign, Hash, FileText, Eye, Edit, Trash2, UserPlus, Wrench, Archive, History, QrCode, Download, Bell, Scan, FileInput, Camera } from 'lucide-react';
+import { Plus, Package, Laptop, Monitor, Smartphone, Printer, Server, HardDrive, Upload, Search, Filter, ChevronDown, MoreVertical, Clock, AlertCircle, CheckCircle, X, ArrowLeft, Calendar, DollarSign, Hash, FileText, Eye, Edit, Trash2, UserPlus, Wrench, Archive, History, QrCode, Download, Bell, Share2 } from 'lucide-react';
 import { AssetDetailsOverlay } from './AssetDetailsOverlay';
 import { AssignToEmployeeOverlay } from './AssignToEmployeeOverlay';
 import { AssetHistoryOverlay } from './AssetHistoryOverlay';
 import { EditAssetOverlay } from './EditAssetOverlay';
 import { SmartSearchBar, QuickFilter } from './SmartSearchBar';
 import { QRCodeGenerator } from './QRCodeGenerator';
+import { AllocateHardwareOverlay } from './AllocateHardwareOverlay';
 
-type InventoryView = 'list' | 'add-hardware' | 'add-choice' | 'qr-scan' | 'qr-result';
+type InventoryView = 'list' | 'add-hardware';
 type AddHardwareStep = 0 | 1 | 2 | 3 | 4 | 5;
 type AssetStatus = 'Available' | 'Assigned' | 'Under Repair' | 'Damaged' | 'Decommissioned';
 type ViewMode = 'table' | 'grid';
-type AddMethod = 'qr-scan' | 'manual' | null;
 
 interface HardwareData {
   name: string;
@@ -52,8 +52,6 @@ export function InventoryManagement() {
   const [showFilters, setShowFilters] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [uploadedDocument, setUploadedDocument] = useState<File | null>(null);
-  const [addMethod, setAddMethod] = useState<AddMethod>(null);
-  const [isScanning, setIsScanning] = useState(false);
   
   // Overlay states
   const [showDetailsOverlay, setShowDetailsOverlay] = useState(false);
@@ -61,6 +59,7 @@ export function InventoryManagement() {
   const [showHistoryOverlay, setShowHistoryOverlay] = useState(false);
   const [showEditOverlay, setShowEditOverlay] = useState(false);
   const [showQRGenerator, setShowQRGenerator] = useState(false);
+  const [showAllocateOverlay, setShowAllocateOverlay] = useState(false);
   const [qrAssetData, setQRAssetData] = useState<{ assetId: string; name: string; serialNumber: string; type: string } | null>(null);
   
   const [hardwareData, setHardwareData] = useState<HardwareData>({
@@ -87,6 +86,18 @@ export function InventoryManagement() {
   });
 
   const [quickFilters, setQuickFilters] = useState<string[]>([]);
+
+  // Employee list for allocation
+  const employeeList = [
+    { id: '1', name: 'John Doe', email: 'john.doe@company.com', role: 'Software Engineer', department: 'Engineering', location: 'San Francisco, CA', status: 'Active' as const },
+    { id: '2', name: 'Jane Smith', email: 'jane.smith@company.com', role: 'Product Manager', department: 'Product', location: 'New York, NY', status: 'Active' as const },
+    { id: '3', name: 'Mike Johnson', email: 'mike.j@company.com', role: 'Designer', department: 'Design', location: 'Austin, TX', status: 'Active' as const },
+    { id: '4', name: 'Sarah Williams', email: 'sarah.w@company.com', role: 'Marketing Manager', department: 'Marketing', location: 'Los Angeles, CA', status: 'Active' as const },
+    { id: '5', name: 'Tom Brown', email: 'tom.brown@company.com', role: 'DevOps Engineer', department: 'Engineering', location: 'Seattle, WA', status: 'Active' as const },
+    { id: '6', name: 'Emily Davis', email: 'emily.d@company.com', role: 'UX Designer', department: 'Design', location: 'Portland, OR', status: 'Active' as const },
+    { id: '7', name: 'Robert Wilson', email: 'robert.w@company.com', role: 'Senior Developer', department: 'Engineering', location: 'San Francisco, CA', status: 'Active' as const },
+    { id: '8', name: 'Lisa Anderson', email: 'lisa.a@company.com', role: 'HR Manager', department: 'Human Resources', location: 'New York, NY', status: 'Active' as const },
+  ];
 
   const [hardwareInventory, setHardwareInventory] = useState<HardwareAsset[]>([
     {
@@ -393,37 +404,7 @@ export function InventoryManagement() {
     setSelectedAsset(null);
   };
 
-  // Simulate QR scanning
-  const startQRScan = () => {
-    setIsScanning(true);
-    // Simulate scanning delay
-    setTimeout(() => {
-      setIsScanning(false);
-      setInventoryView('qr-result');
-      // Auto-fill data from "scanned" QR code
-      setHardwareData({
-        name: 'MacBook Pro 14"',
-        type: 'Laptop',
-        category: 'Computing',
-        brand: 'Apple',
-        model: 'M3 Max 2024',
-        vendor: 'Apple Store',
-        purchaseDate: '2024-12-01',
-        cost: '$3,199',
-        warrantyExpiry: '2025-12-01',
-        amcDetails: 'AppleCare+ 3 years',
-        serialNumber: 'C02ZK1ABCDEF',
-        assetId: 'DVM-0898',
-        qrCode: 'QR-DVM-0898',
-      });
-    }, 2500);
-  };
 
-  useEffect(() => {
-    if (inventoryView === 'qr-scan' && !isScanning) {
-      startQRScan();
-    }
-  }, [inventoryView]);
 
   const filteredInventory = hardwareInventory.filter(asset => {
     const matchesSearch = asset.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -484,283 +465,6 @@ export function InventoryManagement() {
     }
   };
 
-  // QR Scanning View
-  if (inventoryView === 'qr-scan') {
-    return (
-      <div className="p-6">
-        <div className="max-w-2xl mx-auto">
-          <button
-            onClick={() => {
-              setInventoryView('add-choice');
-              setIsScanning(false);
-            }}
-            className="mb-6 flex items-center gap-2 text-sm text-slate-600 hover:text-slate-900 transition-colors"
-          >
-            <ArrowLeft className="w-4 h-4" />
-            Back
-          </button>
-
-          <div className="text-center mb-8">
-            <h2 className="text-2xl text-slate-900 mb-2">Scanning QR Code</h2>
-            <p className="text-sm text-slate-600">Position the QR code within the camera frame</p>
-          </div>
-
-          {/* Camera View Simulation */}
-          <div className="bg-slate-900 rounded-2xl p-8 aspect-square max-w-md mx-auto relative overflow-hidden">
-            <div className="absolute inset-0 bg-gradient-to-br from-slate-800 to-slate-900" />
-            
-            {/* Scanning animation */}
-            <div className="relative z-10 h-full flex items-center justify-center">
-              <div className="relative">
-                {/* QR Frame */}
-                <div className="w-64 h-64 border-4 border-white/30 rounded-2xl relative">
-                  {/* Corner decorations */}
-                  <div className="absolute top-0 left-0 w-12 h-12 border-t-4 border-l-4 border-white rounded-tl-2xl" />
-                  <div className="absolute top-0 right-0 w-12 h-12 border-t-4 border-r-4 border-white rounded-tr-2xl" />
-                  <div className="absolute bottom-0 left-0 w-12 h-12 border-b-4 border-l-4 border-white rounded-bl-2xl" />
-                  <div className="absolute bottom-0 right-0 w-12 h-12 border-b-4 border-r-4 border-white rounded-br-2xl" />
-                  
-                  {/* Scanning line */}
-                  <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-transparent via-white to-transparent animate-pulse" 
-                       style={{ animation: 'scan 2s ease-in-out infinite' }} />
-                </div>
-
-                {/* Camera icon */}
-                <div className="absolute inset-0 flex items-center justify-center">
-                  <Camera className="w-16 h-16 text-white/40" />
-                </div>
-              </div>
-            </div>
-
-            {/* Scanning status */}
-            <div className="absolute bottom-8 left-0 right-0 text-center z-20">
-              <div className="inline-flex items-center gap-2 px-4 py-2 bg-white/10 backdrop-blur rounded-full">
-                <div className="w-2 h-2 bg-white rounded-full animate-pulse" />
-                <span className="text-sm text-white">Scanning...</span>
-              </div>
-            </div>
-          </div>
-
-          <div className="mt-6 text-center text-sm text-slate-600">
-            <p>Make sure the QR code is clearly visible and well-lit</p>
-          </div>
-        </div>
-
-        <style>{`
-          @keyframes scan {
-            0% { top: 0%; }
-            50% { top: 100%; }
-            100% { top: 0%; }
-          }
-        `}</style>
-      </div>
-    );
-  }
-
-  // QR Result View - Show scanned data with edit option
-  if (inventoryView === 'qr-result') {
-    return (
-      <div className="p-6">
-        <div className="max-w-3xl mx-auto">
-          <button
-            onClick={() => {
-              setInventoryView('add-choice');
-              setHardwareData({
-                name: '',
-                type: '',
-                category: '',
-                brand: '',
-                model: '',
-                vendor: '',
-                purchaseDate: '',
-                cost: '',
-                warrantyExpiry: '',
-                amcDetails: '',
-                serialNumber: '',
-                assetId: '',
-                qrCode: '',
-              });
-            }}
-            className="mb-6 flex items-center gap-2 text-sm text-slate-600 hover:text-slate-900 transition-colors"
-          >
-            <ArrowLeft className="w-4 h-4" />
-            Back
-          </button>
-
-          <div className="text-center mb-8">
-            <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
-              <CheckCircle className="w-8 h-8 text-green-600" />
-            </div>
-            <h2 className="text-2xl text-slate-900 mb-2">Vendor QR Code Scanned</h2>
-            <p className="text-sm text-slate-600">Review the auto-filled information. After adding, we'll generate a system QR code for this asset.</p>
-          </div>
-
-          {/* Scanned Data - Editable */}
-          <div className="bg-white rounded-xl border border-slate-200 p-6 space-y-6 mb-6">
-            <div>
-              <h3 className="text-sm text-slate-900 mb-4">Hardware Information</h3>
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-xs text-slate-700 mb-1.5">Hardware Name</label>
-                  <input
-                    type="text"
-                    value={hardwareData.name}
-                    onChange={(e) => updateHardwareData('name', e.target.value)}
-                    className="w-full px-3 py-2 text-sm bg-slate-50 border border-slate-200 rounded-lg text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-900"
-                  />
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-xs text-slate-700 mb-1.5">Type</label>
-                    <input
-                      type="text"
-                      value={hardwareData.type}
-                      onChange={(e) => updateHardwareData('type', e.target.value)}
-                      className="w-full px-3 py-2 text-sm bg-slate-50 border border-slate-200 rounded-lg text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-900"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs text-slate-700 mb-1.5">Category</label>
-                    <input
-                      type="text"
-                      value={hardwareData.category}
-                      onChange={(e) => updateHardwareData('category', e.target.value)}
-                      className="w-full px-3 py-2 text-sm bg-slate-50 border border-slate-200 rounded-lg text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-900"
-                    />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-xs text-slate-700 mb-1.5">Brand</label>
-                    <input
-                      type="text"
-                      value={hardwareData.brand}
-                      onChange={(e) => updateHardwareData('brand', e.target.value)}
-                      className="w-full px-3 py-2 text-sm bg-slate-50 border border-slate-200 rounded-lg text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-900"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs text-slate-700 mb-1.5">Model</label>
-                    <input
-                      type="text"
-                      value={hardwareData.model}
-                      onChange={(e) => updateHardwareData('model', e.target.value)}
-                      className="w-full px-3 py-2 text-sm bg-slate-50 border border-slate-200 rounded-lg text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-900"
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-xs text-slate-700 mb-1.5">Vendor</label>
-                  <input
-                    type="text"
-                    value={hardwareData.vendor}
-                    onChange={(e) => updateHardwareData('vendor', e.target.value)}
-                    className="w-full px-3 py-2 text-sm bg-slate-50 border border-slate-200 rounded-lg text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-900"
-                  />
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-xs text-slate-700 mb-1.5">Purchase Date</label>
-                    <input
-                      type="date"
-                      value={hardwareData.purchaseDate}
-                      onChange={(e) => updateHardwareData('purchaseDate', e.target.value)}
-                      className="w-full px-3 py-2 text-sm bg-slate-50 border border-slate-200 rounded-lg text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-900"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs text-slate-700 mb-1.5">Cost</label>
-                    <input
-                      type="text"
-                      value={hardwareData.cost}
-                      onChange={(e) => updateHardwareData('cost', e.target.value)}
-                      className="w-full px-3 py-2 text-sm bg-slate-50 border border-slate-200 rounded-lg text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-900"
-                    />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-xs text-slate-700 mb-1.5">Warranty Expiry</label>
-                    <input
-                      type="date"
-                      value={hardwareData.warrantyExpiry}
-                      onChange={(e) => updateHardwareData('warrantyExpiry', e.target.value)}
-                      className="w-full px-3 py-2 text-sm bg-slate-50 border border-slate-200 rounded-lg text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-900"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs text-slate-700 mb-1.5">AMC Details</label>
-                    <input
-                      type="text"
-                      value={hardwareData.amcDetails}
-                      onChange={(e) => updateHardwareData('amcDetails', e.target.value)}
-                      className="w-full px-3 py-2 text-sm bg-slate-50 border border-slate-200 rounded-lg text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-900"
-                    />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-xs text-slate-700 mb-1.5">Serial Number</label>
-                    <input
-                      type="text"
-                      value={hardwareData.serialNumber}
-                      onChange={(e) => updateHardwareData('serialNumber', e.target.value)}
-                      className="w-full px-3 py-2 text-sm bg-slate-50 border border-slate-200 rounded-lg text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-900"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs text-slate-700 mb-1.5">Asset ID</label>
-                    <input
-                      type="text"
-                      value={hardwareData.assetId}
-                      onChange={(e) => updateHardwareData('assetId', e.target.value)}
-                      className="w-full px-3 py-2 text-sm bg-slate-50 border border-slate-200 rounded-lg text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-900"
-                    />
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* QR Code Info */}
-          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 flex items-start gap-3 mb-6">
-            <QrCode className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
-            <div>
-              <p className="text-sm text-blue-900 mb-1">
-                <strong>System QR Code will be generated</strong>
-              </p>
-              <p className="text-sm text-blue-700">
-                After adding, we'll generate a standardized system QR code that you can print and attach to this asset for future scanning.
-              </p>
-            </div>
-          </div>
-
-          <div className="flex gap-3">
-            <button
-              onClick={() => setInventoryView('qr-scan')}
-              className="flex-1 px-5 py-3 bg-white border border-slate-200 text-sm text-slate-700 rounded-lg hover:bg-slate-50 transition-colors"
-            >
-              Scan Again
-            </button>
-            <button
-              onClick={handleAddHardware}
-              className="flex-1 px-5 py-3 bg-slate-900 text-sm text-white rounded-lg hover:bg-slate-800 transition-colors flex items-center justify-center gap-2"
-            >
-              <CheckCircle className="w-4 h-4" />
-              Add to Inventory
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
   // Main Inventory List View
   if (inventoryView === 'list') {
     // Calculate warranty alerts
@@ -778,13 +482,25 @@ export function InventoryManagement() {
               <h1 className="text-2xl text-slate-900 mb-1">Inventory Management</h1>
               <p className="text-sm text-slate-600">Manage all hardware assets, assignments, and lifecycle</p>
             </div>
-            <button
-              onClick={() => setInventoryView('add-choice')}
-              className="px-4 py-2 bg-slate-900 text-white text-sm rounded-lg hover:bg-slate-800 transition-colors flex items-center gap-2"
-            >
-              <Plus className="w-4 h-4" />
-              Add Hardware
-            </button>
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => setShowAllocateOverlay(true)}
+                className="px-4 py-2 bg-white border border-slate-200 text-slate-700 text-sm rounded-lg hover:bg-slate-50 transition-colors flex items-center gap-2"
+              >
+                <Share2 className="w-4 h-4" />
+                Allocate Hardware
+              </button>
+              <button
+                onClick={() => {
+                  setInventoryView('add-hardware');
+                  setAddHardwareStep(0);
+                }}
+                className="px-4 py-2 bg-slate-900 text-white text-sm rounded-lg hover:bg-slate-800 transition-colors flex items-center gap-2"
+              >
+                <Plus className="w-4 h-4" />
+                Add Hardware
+              </button>
+            </div>
           </div>
 
           {/* Warranty Alerts */}
@@ -1158,74 +874,14 @@ export function InventoryManagement() {
           }}
           assetData={qrAssetData || { assetId: '', name: '', serialNumber: '', type: '' }}
         />
-      </div>
-    );
-  }
 
-  // Add Hardware Choice View
-  if (inventoryView === 'add-choice') {
-    return (
-      <div className="p-6">
-        <div className="max-w-4xl mx-auto">
-          <button
-            onClick={() => {
-              setInventoryView('list');
-              setAddHardwareStep(1);
-            }}
-            className="mb-6 flex items-center gap-2 text-sm text-slate-600 hover:text-slate-900 transition-colors"
-          >
-            <ArrowLeft className="w-4 h-4" />
-            Back to Inventory
-          </button>
-
-          <div className="text-center mb-8">
-            <h2 className="text-2xl text-slate-900 mb-2">Add New Hardware</h2>
-            <p className="text-sm text-slate-600">Choose how you would like to add hardware to inventory</p>
-          </div>
-
-          {/* Add Method Choice */}
-          <div className="grid grid-cols-2 gap-6">
-            <button
-              onClick={() => {
-                setInventoryView('qr-scan');
-                setAddHardwareStep(0);
-                setAddMethod('qr-scan');
-              }}
-              className="group bg-white border-2 border-slate-200 rounded-xl p-8 hover:border-slate-900 hover:bg-slate-50 transition-all text-left"
-            >
-              <div className="flex flex-col items-center text-center">
-                <div className="w-16 h-16 bg-slate-100 group-hover:bg-slate-900 rounded-xl flex items-center justify-center mb-4 transition-colors">
-                  <QrCode className="w-8 h-8 text-slate-600 group-hover:text-white transition-colors" />
-                </div>
-                <h3 className="text-lg text-slate-900 mb-2">Scan Vendor QR Code</h3>
-                <p className="text-sm text-slate-600 mb-4">Scan the manufacturer QR code on the hardware packaging to automatically pull device information</p>
-                <div className="bg-blue-50 border border-blue-200 rounded-lg px-3 py-2 text-xs text-blue-700">
-                  Fastest method • Auto-fills data
-                </div>
-              </div>
-            </button>
-
-            <button
-              onClick={() => {
-                setInventoryView('add-hardware');
-                setAddHardwareStep(0);
-                setAddMethod('manual');
-              }}
-              className="group bg-white border-2 border-slate-200 rounded-xl p-8 hover:border-slate-900 hover:bg-slate-50 transition-all text-left"
-            >
-              <div className="flex flex-col items-center text-center">
-                <div className="w-16 h-16 bg-slate-100 group-hover:bg-slate-900 rounded-xl flex items-center justify-center mb-4 transition-colors">
-                  <FileInput className="w-8 h-8 text-slate-600 group-hover:text-white transition-colors" />
-                </div>
-                <h3 className="text-lg text-slate-900 mb-2">Enter Manually</h3>
-                <p className="text-sm text-slate-600 mb-4">Manually enter all hardware details. System will generate a QR code for you to print and attach</p>
-                <div className="bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs text-slate-700">
-                  Complete control • Auto-generates QR code
-                </div>
-              </div>
-            </button>
-          </div>
-        </div>
+        <AllocateHardwareOverlay
+          isOpen={showAllocateOverlay}
+          onClose={() => setShowAllocateOverlay(false)}
+          assets={hardwareInventory}
+          employees={employeeList}
+          onAllocate={handleAssignAsset}
+        />
       </div>
     );
   }
@@ -1237,13 +893,13 @@ export function InventoryManagement() {
         <div className="max-w-3xl mx-auto">
           <button
             onClick={() => {
-              setInventoryView('add-choice');
+              setInventoryView('list');
               setAddHardwareStep(1);
             }}
             className="mb-6 flex items-center gap-2 text-sm text-slate-600 hover:text-slate-900 transition-colors"
           >
             <ArrowLeft className="w-4 h-4" />
-            Back
+            Back to Inventory
           </button>
 
           <div className="text-center mb-8">
