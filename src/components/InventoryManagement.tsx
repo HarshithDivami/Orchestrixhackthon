@@ -5,6 +5,7 @@ import { AssignToEmployeeOverlay } from './AssignToEmployeeOverlay';
 import { AssetHistoryOverlay } from './AssetHistoryOverlay';
 import { EditAssetOverlay } from './EditAssetOverlay';
 import { SmartSearchBar, QuickFilter } from './SmartSearchBar';
+import { QRCodeGenerator } from './QRCodeGenerator';
 
 type InventoryView = 'list' | 'add-hardware' | 'add-choice' | 'qr-scan' | 'qr-result';
 type AddHardwareStep = 0 | 1 | 2 | 3 | 4 | 5;
@@ -59,6 +60,8 @@ export function InventoryManagement() {
   const [showAssignOverlay, setShowAssignOverlay] = useState(false);
   const [showHistoryOverlay, setShowHistoryOverlay] = useState(false);
   const [showEditOverlay, setShowEditOverlay] = useState(false);
+  const [showQRGenerator, setShowQRGenerator] = useState(false);
+  const [qrAssetData, setQRAssetData] = useState<{ assetId: string; name: string; serialNumber: string; type: string } | null>(null);
   
   const [hardwareData, setHardwareData] = useState<HardwareData>({
     name: '',
@@ -231,6 +234,16 @@ export function InventoryManagement() {
       ],
     };
     setHardwareInventory(prev => [newAsset, ...prev]);
+    
+    // Show QR code generator for the newly added asset
+    setQRAssetData({
+      assetId: newAsset.assetId,
+      name: newAsset.name,
+      serialNumber: newAsset.serialNumber,
+      type: newAsset.type,
+    });
+    setShowQRGenerator(true);
+    
     setInventoryView('list');
     setAddHardwareStep(1);
     setHardwareData({
@@ -315,6 +328,15 @@ export function InventoryManagement() {
               : a
           ));
         }
+        break;
+      case 'generate-qr':
+        setQRAssetData({
+          assetId: asset.assetId,
+          name: asset.name,
+          serialNumber: asset.serialNumber,
+          type: asset.type,
+        });
+        setShowQRGenerator(true);
         break;
       case 'delete':
         if (confirm(`Permanently delete ${asset.name}? This action cannot be undone.`)) {
@@ -569,8 +591,8 @@ export function InventoryManagement() {
             <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
               <CheckCircle className="w-8 h-8 text-green-600" />
             </div>
-            <h2 className="text-2xl text-slate-900 mb-2">QR Code Scanned Successfully</h2>
-            <p className="text-sm text-slate-600">Review the auto-filled information and make any necessary edits</p>
+            <h2 className="text-2xl text-slate-900 mb-2">Vendor QR Code Scanned</h2>
+            <p className="text-sm text-slate-600">Review the auto-filled information. After adding, we'll generate a system QR code for this asset.</p>
           </div>
 
           {/* Scanned Data - Editable */}
@@ -703,6 +725,19 @@ export function InventoryManagement() {
                   </div>
                 </div>
               </div>
+            </div>
+          </div>
+
+          {/* QR Code Info */}
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 flex items-start gap-3 mb-6">
+            <QrCode className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
+            <div>
+              <p className="text-sm text-blue-900 mb-1">
+                <strong>System QR Code will be generated</strong>
+              </p>
+              <p className="text-sm text-blue-700">
+                After adding, we'll generate a standardized system QR code that you can print and attach to this asset for future scanning.
+              </p>
             </div>
           </div>
 
@@ -1031,6 +1066,14 @@ export function InventoryManagement() {
                                   Edit Asset
                                 </button>
                                 <button
+                                  onClick={() => handleAssetAction(asset.id, 'generate-qr')}
+                                  className="w-full px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-50 flex items-center gap-2"
+                                >
+                                  <QrCode className="w-3.5 h-3.5" />
+                                  Generate QR Code
+                                </button>
+                                <div className="border-t border-slate-200" />
+                                <button
                                   onClick={() => handleAssetAction(asset.id, 'archive')}
                                   className="w-full px-3 py-2 text-left text-sm text-orange-700 hover:bg-orange-50 flex items-center gap-2"
                                 >
@@ -1106,6 +1149,15 @@ export function InventoryManagement() {
           }}
           onSave={handleSaveAssetEdit}
         />
+
+        <QRCodeGenerator
+          isOpen={showQRGenerator}
+          onClose={() => {
+            setShowQRGenerator(false);
+            setQRAssetData(null);
+          }}
+          assetData={qrAssetData || { assetId: '', name: '', serialNumber: '', type: '' }}
+        />
       </div>
     );
   }
@@ -1145,8 +1197,8 @@ export function InventoryManagement() {
                 <div className="w-16 h-16 bg-slate-100 group-hover:bg-slate-900 rounded-xl flex items-center justify-center mb-4 transition-colors">
                   <QrCode className="w-8 h-8 text-slate-600 group-hover:text-white transition-colors" />
                 </div>
-                <h3 className="text-lg text-slate-900 mb-2">Scan QR Code</h3>
-                <p className="text-sm text-slate-600 mb-4">Scan the QR code on the hardware to automatically pull device information</p>
+                <h3 className="text-lg text-slate-900 mb-2">Scan Vendor QR Code</h3>
+                <p className="text-sm text-slate-600 mb-4">Scan the manufacturer QR code on the hardware packaging to automatically pull device information</p>
                 <div className="bg-blue-50 border border-blue-200 rounded-lg px-3 py-2 text-xs text-blue-700">
                   Fastest method • Auto-fills data
                 </div>
@@ -1166,9 +1218,9 @@ export function InventoryManagement() {
                   <FileInput className="w-8 h-8 text-slate-600 group-hover:text-white transition-colors" />
                 </div>
                 <h3 className="text-lg text-slate-900 mb-2">Enter Manually</h3>
-                <p className="text-sm text-slate-600 mb-4">Manually enter all hardware details through the step-by-step form</p>
+                <p className="text-sm text-slate-600 mb-4">Manually enter all hardware details. System will generate a QR code for you to print and attach</p>
                 <div className="bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs text-slate-700">
-                  Complete control • Type-specific fields
+                  Complete control • Auto-generates QR code
                 </div>
               </div>
             </button>
@@ -1624,6 +1676,19 @@ export function InventoryManagement() {
                     </div>
                   </div>
                 </div>
+              </div>
+            </div>
+
+            {/* QR Code Info */}
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 flex items-start gap-3">
+              <QrCode className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
+              <div>
+                <p className="text-sm text-blue-900 mb-1">
+                  <strong>QR Code will be auto-generated</strong>
+                </p>
+                <p className="text-sm text-blue-700">
+                  After adding this asset, we'll generate a system QR code that you can print and attach to the physical hardware.
+                </p>
               </div>
             </div>
 
